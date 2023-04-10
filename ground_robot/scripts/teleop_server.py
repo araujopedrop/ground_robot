@@ -31,36 +31,35 @@ class teleopKeyServerNode(Node):
 
         key = request.command
 
-        #try:
+        try:
 
-        if key == 'w':
-            self.go_forwards()
-        elif key == 's':
-            self.go_backwards()
-        elif key == 'a':
-            self.rotate_anti_clockwise()
-        elif key == 'd':
-            self.rotate_clockwise()
-        elif key == 'space_bar':
-            self.stop_vehicle()
-        else:
-            list = str(key).split()
-            if list[0] == "->":
-                cam_rads = float(list[1])
-                self.cam_rotate(cam_rads)
+            if key == 'w':
+                self.go_forwards()
+            elif key == 's':
+                self.go_backwards()
+            elif key == 'a':
+                self.rotate_anti_clockwise()
+            elif key == 'd':
+                self.rotate_clockwise()
+            elif key == 'space_bar':
+                self.stop_vehicle()
+            else:
+                list = str(key).split()
+                if list[0] == "->":
+                    cam_rads = float(list[1])
+                    self.cam_rotate(cam_rads)
 
 
-        response.result = True
+            response.result = True
 
-        return response
+            return response
 
-        '''
+
         except Exception as e:
             self.get_logger().error("Could not execute command!")
             response.result = False
 
             return response
-        '''
 
     def go_forwards(self):
         msg = Twist()
