@@ -1,0 +1,3 @@
+int32 degree
+---
+sensor_msgs/Image response_attr_name
