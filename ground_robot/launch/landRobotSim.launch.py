@@ -18,7 +18,7 @@ from launch.actions import RegisterEventHandler, EmitEvent
 from launch.event_handlers import OnProcessExit
 from launch.events import Shutdown
 
-package_name = "udemy_challenge_4"
+package_name = "ground_robot"
 
 # Path Variables 
 ignition_ros_package_path  = get_package_share_directory("ros_gz_sim")
@@ -38,13 +38,13 @@ def generate_launch_description():
 
     teleop_key_client_node = Node(
         package=package_name,
-        executable="teleop_key_client.py",
+        executable="teleop_client.py",
         name="teleop_key"
     )
 
     teleop_key_server_node = Node(
         package=package_name,
-        executable="teleop_key_server.py",
+        executable="teleop_server.py",
         name="teleop_key"
     )
 
@@ -87,5 +87,3 @@ def generate_launch_description():
     ld.add_action(teleop_key_server_node)
 
     return ld
-
-
