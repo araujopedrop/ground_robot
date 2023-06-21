@@ -26,6 +26,8 @@ endif()
 install(PROGRAMS
   scripts/teleop_server.py
   scripts/teleop_client.py
+  scripts/robot_state_publisher.py
+  scripts/navigation_manager.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
@@ -34,7 +36,8 @@ ament_python_install_package(scripts)
 install(DIRECTORY launch DESTINATION share/${PROJECT_NAME})
 install(DIRECTORY worlds DESTINATION share/${PROJECT_NAME})
 install(DIRECTORY models DESTINATION share/${PROJECT_NAME})
-
-
+install(DIRECTORY maps   DESTINATION share/${PROJECT_NAME})
+install(DIRECTORY config DESTINATION share/${PROJECT_NAME})
+install(DIRECTORY config DESTINATION param/${PROJECT_NAME})
 
 ament_package()
