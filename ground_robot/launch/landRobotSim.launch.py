@@ -20,6 +20,8 @@ from launch.actions import RegisterEventHandler, EmitEvent
 from launch.event_handlers import OnProcessExit
 from launch.events import Shutdown
 
+from launch_ros.substitutions          import FindPackageShare
+
 package_name = "ground_robot"
 
 # Path Variables 
@@ -36,6 +38,12 @@ simulation = ExecuteProcess(
 
 def generate_launch_description():
     ld = LaunchDescription()
+
+    teleop_GUI = Node(
+        package=package_name,
+        executable="teleop_GUI.py",
+        name="teleop_GUI"
+    )
 
     teleop_key_client_node = Node(
         package=package_name,
@@ -69,6 +77,12 @@ def generate_launch_description():
         output="screen" 
     )
 
+    '''
+    rosbrigde_server = IncludeLaunchDescription(
+            PythonLaunchDescriptionSource([FindPackageShare("rosbridge_server"), '/launch/', "rosbridge_websocket_launch.xml"])
+            )
+    '''
+
     #/TOPIC@ROS_MSG@IGN_MSG
     bridge_node = Node(
         package="ros_ign_bridge",
@@ -94,6 +108,11 @@ def generate_launch_description():
     cmd=['ign', 'gazebo', '-r', simulation_world_file_path],
     output='screen'
     )
+
+    rosbrigde_server = ExecuteProcess(
+    cmd=['ros2', 'launch', 'rosbridge_server', "rosbridge_websocket_launch.xml"],
+    output='screen'
+    )
         
     #Para parar el roslaunch al cerrar la simulacion
     handler_event = RegisterEventHandler(
@@ -103,6 +122,7 @@ def generate_launch_description():
         )
     )
 
+    ld.add_action(teleop_GUI)
     ld.add_action(bridge_node)
     ld.add_action(handler_event)
     ld.add_action(set_env)
@@ -112,5 +132,7 @@ def generate_launch_description():
     ld.add_action(robot_state_publisher_node)
     ld.add_action(navigation_manager_node)
     ld.add_action(rviz_node)
+    ld.add_action(rosbrigde_server)
+    
 
     return ld

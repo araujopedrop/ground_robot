@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 
+import math
 import rclpy
 
 from rclpy.node              import Node
@@ -55,7 +56,7 @@ class teleopKeyServerNode(Node):
         '''
             string command
             ---
-            bool result
+            string result
         '''
 
         key = request.command
@@ -63,34 +64,33 @@ class teleopKeyServerNode(Node):
         try:
 
             if key == 'w':
-                self.go_forwards()
+                response.result = self.go_forwards()
             elif key == 's':
-                self.go_backwards()
+                response.result = self.go_backwards()
             elif key == 'a':
-                self.rotate_anti_clockwise()
+                response.result = self.rotate_anti_clockwise()
             elif key == 'd':
-                self.rotate_clockwise()
+                response.result = self.rotate_clockwise()
             elif key == 'space_bar':
-                self.stop_vehicle()
+                response.result = self.stop_vehicle()
             else:
                 list = str(key).split()
                 if list[0] == "->":
                     cam_rads = float(list[1])
-                    self.cam_rotate(cam_rads)
+                    response.result = self.cam_rotate(cam_rads)
 
-
-            response.result = True
 
             return response
 
 
         except Exception as e:
             self.get_logger().error("Could not execute command!")
-            response.result = False
+            response.result = "False"
 
             return response
 
     def go_forwards(self):
+
         msg = Twist()
         msg.linear.x = self.VELOCITY
         msg.linear.y = 0.0
@@ -100,6 +100,8 @@ class teleopKeyServerNode(Node):
         msg.angular.z = 0.0
         self.pub_vel_.publish(msg)
 
+        return "Forward"
+    
     def go_backwards(self):
         msg = Twist()
         msg.linear.x = -self.VELOCITY
@@ -110,7 +112,10 @@ class teleopKeyServerNode(Node):
         msg.angular.z = 0.0
         self.pub_vel_.publish(msg)
 
+        return "Backwards"
+    
     def rotate_clockwise(self):
+
         msg = Twist()
         msg.linear.x = 0.0
         msg.linear.y = 0.0
@@ -120,7 +125,10 @@ class teleopKeyServerNode(Node):
         msg.angular.z = self.VELOCITY
         self.pub_vel_.publish(msg)
 
+        return "Rotate_clockwise"
+
     def rotate_anti_clockwise(self):
+
         msg = Twist()
         msg.linear.x = 0.0
         msg.linear.y = 0.0
@@ -130,7 +138,10 @@ class teleopKeyServerNode(Node):
         msg.angular.z = -self.VELOCITY
         self.pub_vel_.publish(msg)
 
+        return "Rotate_anti_clockwise"
+
     def stop_vehicle(self):
+
         msg = Twist()
         msg.linear.x = 0.0
         msg.linear.y = 0.0
@@ -140,20 +151,21 @@ class teleopKeyServerNode(Node):
         msg.angular.z = 0.0
         self.pub_vel_.publish(msg)
 
+        return "Stop"
+    
     def cam_rotate(self,cam_rads):
 
         msg = Float64()
         msg.data = cam_rads
-        self.get_logger().info("str(cam_rads)")
         self.pub_cam_rot_.publish(msg)
 
-
+        return "cam_rotate:" + str(math.degrees(cam_rads))
 
     def check_cmd_velocity(self,request,response):
         '''
             string command
             ---
-            bool result
+            string result
         '''
 
         key = request.command
@@ -161,34 +173,34 @@ class teleopKeyServerNode(Node):
         try:
 
             if key == self.STRING_SLOW_SPEED:
-                self.slow_down()
-                response.result = True
+                response.result = self.slow_down()
             elif key == self.STRING_NORMAL_SPEED:
-                self.normilize_speed()
-                response.result = True
+                response.result = self.normalize_speed()
             elif key == self.STRING_HIGH_SPEED:
-                self.speed_up()
-                response.result = True
+                response.result = self.speed_up()
             else:
-                response.result = False
+                response.result = "Error"
 
             return response
 
 
         except Exception as e:
-            self.get_logger().error("Could not execute command!")
-            response.result = False
+            self.get_logger().error("Could not execute velocity command!")
+            response.result = "Error"
 
             return response
 
     def slow_down(self):
         self.VELOCITY = self.SLOW_SPEED
+        return "slow_down"
 
-    def normilize_speed(self):
+    def normalize_speed(self):
         self.VELOCITY = self.NORMAL_SPEED
-
+        return "normalize_speed"
+    
     def speed_up(self):
         self.VELOCITY = self.HIGH_SPEED
+        return "speed_up"
 
 def main(args=None):
     rclpy.init(args=args)

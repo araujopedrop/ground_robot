@@ -25,7 +25,7 @@ endif()
 
 install(PROGRAMS
   scripts/teleop_server.py
-  scripts/teleop_client.py
+  scripts/teleop_GUI.py
   scripts/robot_state_publisher.py
   scripts/navigation_manager.py
   DESTINATION lib/${PROJECT_NAME}

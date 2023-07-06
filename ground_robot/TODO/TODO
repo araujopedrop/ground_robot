@@ -1,0 +1,11 @@
+- Unir teleop_GUI con teleop_client, usando ROS_Bridge
+
+
+- Agregar rbot descripotion
+- Arreglar el hardcodeo del path y nombre de mapas
+- Terminar funcionalidad de navegacion
+-- Mandar el goal dsd rviz
+-- Mandar el goal dsd codigo
+-- Agregar waypoints
+- Cambiar mapa de simulacion por uno mas facil de mapear
+- Mejorar un poco la GUI del teleop
