@@ -2,15 +2,19 @@
 
 
 
-import rclpy
+
+
+import os
 import time
+import rclpy
 import launch
 
+import asyncio
 import threading
 import subprocess
 
 from rclpy.node                        import Node
-from signal                            import SIGINT
+from signal                            import SIGINT, SIGABRT
 from std_msgs.msg                      import String
 from my_robot_interfaces.srv           import CmdVehicle
 
@@ -20,6 +24,9 @@ from launch_ros.substitutions          import FindPackageShare
 from launch                            import LaunchDescription
 from launch.actions                    import IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.substitutions              import PathJoinSubstitution, TextSubstitution
+from ament_index_python.packages       import get_package_share_directory
+
 
 class navigationManagerNode(Node):
 
@@ -33,19 +40,25 @@ class navigationManagerNode(Node):
     ACTION = 1
 
     ls_mapping    = LaunchService()
-    ls_saving_map = LaunchService()
+    ls_saving_map = None
     ls_navigate   = LaunchService()
+    ld            = None
+    package_name  = "ground_robot"
+
+    launch_task = None
 
     def __init__(self):
         super().__init__("navigation_manager_node")
 
         self.cmd_service_ = self.create_service(CmdVehicle,"nav_cmd",self.check_cmd)
         self.pub_cmd_ = self.create_publisher(String,"last_cmd",10)
-        #self.timer_pub_ = self.create_timer(0.1,self.publish_last_cmd)
+        self.timer_pub_ = self.create_timer(0.1,self.publish_last_cmd)
 
         self.LAST_CMD = "Modo normal"
 
         self.get_logger().info("nav_cmd service is up!")
+
+        
 
     def publish_last_cmd(self):
         msg = String()
@@ -53,19 +66,21 @@ class navigationManagerNode(Node):
 
         self.pub_cmd_.publish(msg)
 
-    def check_cmd(self,request,response):
+    async def check_cmd(self,request,response):
 
         cmd = request.command
-        self.LAST_CMD = "Me llego algo"
+        
 
         try:
 
             if cmd == self.MAPPING:
-                response.result = self.launch_mapping()
+                await self.launch_mapping()
+                response.result = "Mapeo"
                 return response
 
-            elif cmd == self.SAVE_MAP:
-                response.result = self.launch_saving_map()
+            elif self.is_save_cmd(cmd):
+                map_name = self.get_map_name(cmd)
+                response.result = self.launch_saving_map(map_name)
                 return response
 
             elif cmd == self.NAVIGATE:
@@ -78,16 +93,18 @@ class navigationManagerNode(Node):
                 response.result = "No se que me llego"
 
                 return response
+            
+            await asyncio.sleep(1.0)
 
         except Exception as e:
-            self.get_logger().error("check_cmd: Could not execute command! Error")
+            self.get_logger().error("check_cmd: Could not execute command! Error: " + str(e))
             response.result = "Error"
 
             self.LAST_CMD = "Error"
 
             return response
         
-    def launch_mapping(self):
+    async def launch_mapping(self):
 
         try: 
 
@@ -107,14 +124,13 @@ class navigationManagerNode(Node):
 
             self.ls_mapping.include_launch_description(ld)
 
-            # 
+            
             #self.ls_mapping.run()
 
             '''
 
             # Op 2
-            self.launch_process = subprocess.Popen(["ros2", "launch", "ground_robot", "mapping.launch.py"], text=True)
-
+            # self.launch_process = subprocess.Popen(["ros2", "launch", "ground_robot", "mapping.launch.py"], text=True)
 
             # Op 3
             '''
@@ -131,12 +147,29 @@ class navigationManagerNode(Node):
             '''
 
             # Op 4
-            # self.ls_mapping.run_async() ???
+            
+            package_name = "ground_robot"
 
+            ld = LaunchDescription()
 
+            launch_to_import = IncludeLaunchDescription(
+                    PythonLaunchDescriptionSource([
+                        FindPackageShare(package_name), '/launch', '/mapping.launch.py'])
+                )
+            
+            ld.add_action(launch_to_import)
+
+            self.ls_mapping.include_launch_description(ld)
+            self.launch_task = asyncio.create_task(self.ls_mapping.run_async(shutdown_when_idle=True))
+            #self.ls_mapping.run()   
+            
+            
+            
             self.LAST_CMD = "Mapeo"
 
-            return "Mapeo"
+            #return "Mapeo"
+
+            return self.launch_task
 
         except Exception:
 
@@ -144,79 +177,70 @@ class navigationManagerNode(Node):
 
             return "Error Mapeo"
 
-    def launch_saving_map(self):
+    def launch_saving_map(self, map_name):
 
         try:
         
-            package_name = "ground_robot"
+            self.save_map_roslaunch(map_name)
 
-            # -------------------- Starting launch file for saving map --------------------
-
-            ld = LaunchDescription()
-
-            launch_to_import = IncludeLaunchDescription(
-                    PythonLaunchDescriptionSource([
-                        FindPackageShare(package_name), '/launch', '/save_map.launch.py'])
-                )
-            
-            ld.add_action(launch_to_import)
-
-            self.ls_saving_map.include_launch_description(ld)
-
-            self.ls_saving_map.run()
+            #self.save_map_func(map_name)
 
             self.LAST_CMD = "Mapa guardado"
 
-            time.sleep(3)
+            result = self.wait_until_map_is_created(map_name,get_package_share_directory(self.package_name) + "/maps", 3.0)
 
+            if result:
 
-            # -------------------- Closing mapping launch file --------------------
+                # -------------------- Closing mapping launch file --------------------
 
-            try:
+                try:
+                    
+                    self.terminate_mapping()
 
-                #self.ls_mapping.shutdown()
-                self.ls_saving_map.shutdown()
+                    self.get_logger().warn("Mapping Launchfile was shutdowned")
+                    
+                    self.LAST_CMD = "Guardar mapa"
+
+                    return "Guardando Mapa: " + map_name
+
+                except Exception:
+
+                    self.LAST_CMD = "Error realizando Guardado de mapa"
+
+                    return "Error Guardando Mapa 1"
                 
-                #self.launch_process.send_signal(SIGINT)
-                self.launch_process.terminate()
-                self.launch_process.wait(timeout=30)
-                if self.launch_process.poll() is None:
-                    self.launch_process.kill()
-                self.get_logger().warn("Launchfile was shutdowned")
+            else:
+                
+                self.terminate_mapping()
+                
+                self.get_logger().warn("Mapping Launchfile was shutdowned")
+
                 self.LAST_CMD = "Guardar mapa"
-                
 
-                return "Guardando Mapa"
-
-            except Exception:
-                self.LAST_CMD = "Error realizando Guardado de mapa"
-
-                return "Error Guardando Mapa"
+                return "Error guardando mapa: " + map_name
             
-        except Exception:
+        except Exception as e:
 
             self.LAST_CMD = "Error realizando Guardado de mapa"
 
-            return "Error Guardando Mapa"
+            return "Error Guardando Mapa 2: " + str(e)
 
     def launch_navigate(self):
 
         try:
-        
-            package_name = "ground_robot"
 
             # -------------------- Starting launch file for saving map --------------------
 
-            ld = LaunchDescription()
+            self.ld = LaunchDescription()
 
             launch_to_import = IncludeLaunchDescription(
                     PythonLaunchDescriptionSource([
-                        FindPackageShare(package_name), '/launch', '/navigate.launch.py'])
+                        FindPackageShare(self.package_name), '/launch', '/navigate.launch.py'])
                 )
             
-            ld.add_action(launch_to_import)
+            self.ld.add_action(launch_to_import)
 
-            self.ls.include_launch_description(ld)
+            self.ls.include_launch_description(self.ld)
 
             self.ls.run()
 
@@ -230,6 +254,72 @@ class navigationManagerNode(Node):
 
             return "Error in Navigating"
 
+    def is_save_cmd(self, cmd):
+        if cmd.find(self.SAVE_MAP + "->") != -1:
+            return True
+        return False
+    
+    def get_map_name(self, cmd: str):
+        #map_name = cmd[len(self.SAVE_MAP + "->"):len(cmd)]
+        
+        map_name = cmd.split("->")[1]
+        return map_name
+
+    def wait_until_map_is_created(self, map_name: str, path: str, timeout = 5.0):
+        
+        time.sleep(0.5)
+        start_time = time.time()
+
+        while self.check_if_name_exists(map_name, path) == False:
+            end_time = time.time()
+            if end_time - start_time > timeout:
+                return False
+            else:
+                self.ls_saving_map.run()
+                time.sleep(0.5)
+                
+        
+        return True
+
+    def check_if_name_exists(self, map_name: str, path: str):
+        
+        for elem in os.listdir(path):
+            if elem.find(map_name + ".yaml") != -1:
+                return True
+        return False
+
+    def save_map_func(self,map_name):
+        self.launch_process2 = subprocess.Popen(["ros2", "launch", "ground_robot", "save_map.launch.py", "map_name:="+ map_name, ], text=True)
+
+    def save_map_roslaunch(self,map_name):
+
+        self.ls_saving_map = LaunchService()
+        self.ld            = LaunchDescription()
+
+        launch_to_import = IncludeLaunchDescription(
+                                PythonLaunchDescriptionSource([
+                                    FindPackageShare(self.package_name), 
+                                        '/launch', 
+                                        '/save_map.launch.py']),
+                                    launch_arguments={
+                                        'map_name': map_name
+                                    }.items())
+
+        self.ld.add_action(launch_to_import)
+
+        self.ls_saving_map.include_launch_description(self.ld)
+
+        val = self.ls_saving_map.run()
+
+    def terminate_mapping(self):
+        self.ls_mapping.shutdown()
+        self.ls_saving_map.shutdown()
+        self.launch_process.send_signal(SIGINT)
+        #self.launch_process.terminate()
+        self.launch_process.wait(timeout=30)
+        #while self.launch_process.poll() is None:
+        #    self.launch_process.wait(timeout=30)
+        #    self.launch_process.kill()
 
 def main(args=None):
     rclpy.init(args=args)
